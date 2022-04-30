@@ -7,3 +7,7 @@ builds:
       - darwin
     goarch:
       - amd64
+
+release:
+  extra_files:
+    - glob: ./configs/config.yaml
