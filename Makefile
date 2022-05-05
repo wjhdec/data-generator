@@ -8,7 +8,7 @@ clean:
 	@go clean
 	@rm -rf dist/
 
-generator: clean
+generator:
 	@GOARCH=amd64 GOOS=$(GO_GOOS)  CGO_ENABLED=0 go build -tags "$(TAGS)" -o $(TARGET_PATH) main.go
 	@upx $(TARGET_PATH)
 	@cp configs/config.yaml dist/

@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	github.com/Jeffail/tunny v0.1.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/qianlnk/to v0.0.0-20191230085244-91e712717368 // indirect

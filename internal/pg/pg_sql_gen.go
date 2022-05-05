@@ -6,13 +6,14 @@ import (
 	"datagen/internal/pkg/schema"
 	"datagen/internal/pkg/valuegen"
 	"fmt"
+	"github.com/Jeffail/tunny"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/qianlnk/pgbar"
 	"github.com/spf13/viper"
 	"log"
+	"runtime"
 	"strings"
-	"sync"
 )
 
 type SqlGen struct {
@@ -38,41 +39,52 @@ func (g *SqlGen) CreateSql() {
 	allCount := g.viper.GetInt("generator.count")
 	partSize := g.viper.GetInt("generator.part_size")
 
-	pgb := pgbar.New("data generate")
-	b := pgb.NewBar("generator", allCount)
-
-	var wg sync.WaitGroup
 	partCount := allCount / partSize
 	partMod := allCount % partSize
 	if partMod > 0 {
 		partCount += 1
 	}
-	log.Printf("part count: %d", partCount)
-	wg.Add(partCount)
+	pgb := pgbar.New("data generate")
+	b := pgb.NewBar("finished", allCount)
+
+	type Param struct {
+		addSize int
+		sql     string
+		pool    *pgxpool.Pool
+		bar     *pgbar.Bar
+	}
+
+	pool := tunny.NewFunc(runtime.NumCPU()*5, func(i interface{}) interface{} {
+		param, ok := i.(*Param)
+		if !ok {
+			log.Panic("input param type error")
+		}
+		batch := &pgx.Batch{}
+		for j := 0; j < param.addSize; j++ {
+			values := make([]interface{}, 0, len(insertGen))
+			for _, gen := range insertGen {
+				values = append(values, gen.Value())
+			}
+			batch.Queue(param.sql, values...)
+		}
+		br := param.pool.SendBatch(context.Background(), batch)
+		if _, err := br.Exec(); err != nil {
+			log.Panic(err)
+		}
+		defer br.Close()
+		b.Add(param.addSize)
+		return nil
+	})
+	defer pool.Close()
+
 	for i := 0; i < partCount; i++ {
 		currentAddSize := partSize
 		if i == partCount-1 && partMod > 0 {
 			currentAddSize = partMod
 		}
-		go func(addSize int, pool *pgxpool.Pool, sql string, insertGen []valuegen.ValueGen) {
-			defer wg.Done()
-			batch := &pgx.Batch{}
-			for j := 0; j < addSize; j++ {
-				values := make([]interface{}, 0, len(insertGen))
-				for _, gen := range insertGen {
-					values = append(values, gen.Value())
-				}
-				batch.Queue(sql, values...)
-			}
-			br := pool.SendBatch(context.Background(), batch)
-			if _, err := br.Exec(); err != nil {
-				log.Panic(err)
-			}
-			defer br.Close()
-			b.Add(addSize)
-		}(currentAddSize, g.pool, insertSql, insertGen)
+		param := &Param{addSize: currentAddSize, sql: insertSql, pool: g.pool}
+		pool.Process(param)
 	}
-	wg.Wait()
 }
 
 func (g *SqlGen) createInsertSql(fields []string) string {
