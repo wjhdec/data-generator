@@ -19,7 +19,7 @@ type StringGen struct {
 	// Length 字符串长度
 	Length int `json:"length,omitempty"`
 	// Chars 限制生成随机字符串的可用字符
-	Chars []rune `json:"chars,omitempty"`
+	Chars string `json:"chars,omitempty"`
 	// In 随机选择 in 里面的内容作为返回值
 	In []string `json:"in,omitempty"`
 }
@@ -34,7 +34,7 @@ func (g *StringGen) Value() string {
 	}
 	chars := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
 	if len(g.Chars) > 0 {
-		chars = g.Chars
+		chars = []rune(g.Chars)
 	}
 	charsSize := len(chars)
 	l := make([]rune, length)
